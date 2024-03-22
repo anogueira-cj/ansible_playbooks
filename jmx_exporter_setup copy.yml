@@ -1,0 +1,99 @@
+- name: Setup JMX Exporter in XViewer
+  hosts: vm_xviewer
+  gather_facts: no
+  tasks:
+    - name: Recreate X-Viewer 
+      command:
+        cmd: docker-compose up -d --force-recreate
+        chdir: "$HOME/software/crossviewer-v3-docker"
+      register: test
+    
+    #- name: Debug
+    #  debug: 
+    #    msg: "printing variable: {{test}}"
+
+    - name: Copy JMX Agent jar to machine
+      copy: 
+        src: "/$HOME/software/ansible/files/jmx_prometheus_javaagent-0.20.0.jar"
+        dest: "$HOME/software/prometheus_tmp/jmx_prometheus_javaagent-0.20.0.jar"
+        owner: '{{ansible_user}}'
+        mode: a+x
+    
+    - name: Copy JMX Agent config to machine
+      copy: 
+        src: "/$HOME/software/ansible/files/config.yaml"
+        dest: "$HOME/software/prometheus_tmp/config.yaml"
+        owner: '{{ansible_user}}'
+        mode: a+x
+
+    - name: Copy JMX Agent jar from host to container
+      community.docker.docker_container_copy_into:
+        container: '{{xviewer_server_container_name}}'
+        path: "$HOME/software/prometheus_tmp/jmx_prometheus_javaagent-0.20.0.jar"
+        container_path: /opt/jboss/wildfly/jmx_prometheus_javaagent-0.20.0.jar
+
+    - name: Copy JMX Agent config from host to container
+      community.docker.docker_container_copy_into:
+        container: '{{xviewer_server_container_name}}'
+        path: "$HOME/software/prometheus_tmp/config.yaml"
+        container_path: /opt/jboss/wildfly/config.yaml
+        #owner_id: 0  # root | 1000 jboss
+        #group_id: 0  # root
+
+    - name: Show container files
+      community.docker.docker_container_exec:
+        container: '{{xviewer_server_container_name}}'
+        command: /bin/bash -c "ls -l"
+        chdir: /opt/jboss/wildfly
+
+    - name: Add Java options (1/5)
+      community.docker.docker_container_exec:
+        container: '{{xviewer_server_container_name}}'
+        command: /bin/bash -c "echo 'JAVA_OPTS=\"$JAVA_OPTS -Djboss.modules.system.pkgs=org.jboss.byteman,org.jboss.logmanager\"'  >> standalone.conf"
+        chdir: /opt/jboss/wildfly/bin
+
+    - name: Add Java options (2/5)
+      community.docker.docker_container_exec:
+        container: '{{xviewer_server_container_name}}'
+        command: /bin/bash -c "echo 'JAVA_OPTS=\"$JAVA_OPTS -Djava.util.logging.manager=org.jboss.logmanager.LogManager\"'  >> standalone.conf"
+        chdir: /opt/jboss/wildfly/bin
+
+    - name: Add Java options (3/5)
+      community.docker.docker_container_exec:
+        container: '{{xviewer_server_container_name}}'
+        command: /bin/bash -c "echo 'JAVA_OPTS=\"$JAVA_OPTS -Xbootclasspath/p:/opt/jboss/wildfly/modules/system/layers/base/org/jboss/logmanager/main/jboss-logmanager-2.1.5.Final.jar\"' >> standalone.conf"
+        chdir: /opt/jboss/wildfly/bin
+
+    - name: Add Java options (4/5)
+      community.docker.docker_container_exec:
+        container: '{{xviewer_server_container_name}}'
+        command: /bin/bash -c "echo 'JAVA_OPTS=\"$JAVA_OPTS -Xbootclasspath/p:/opt/jboss/wildfly/modules/system/layers/base/org/wildfly/common/main/wildfly-common-1.4.0.Final.jar\"' >> standalone.conf"
+        chdir: /opt/jboss/wildfly/bin
+
+    - name: Add Java options (5/5)
+      community.docker.docker_container_exec:
+        container: '{{xviewer_server_container_name}}'
+        command: /bin/bash -c "echo 'JAVA_OPTS=\"-javaagent:$JBOSS_HOME/jmx_prometheus_javaagent-0.20.0.jar=12345:$JBOSS_HOME/config.yaml $JAVA_OPTS\"'  >> standalone.conf"
+        chdir: /opt/jboss/wildfly/bin
+
+    - name: Stop X-Viewer
+      command:
+        cmd: docker-compose stop
+        chdir: "$HOME/software/crossviewer-v3-docker"
+
+    - name: Restart X-Viewer
+      command:
+        cmd: docker-compose up -d --no-recreate
+        chdir: "$HOME/software/crossviewer-v3-docker"
+
+    - name: Show container files
+      community.docker.docker_container_exec:
+        container: '{{xviewer_server_container_name}}'
+        command: /bin/bash -c "ls -l"
+        chdir: /opt/jboss/wildfly
+      register: ls_cmd
+
+    - name: Debug - Show new container files
+      debug:
+        msg: "{{ls_cmd.stdout_lines}}"
+
