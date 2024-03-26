@@ -1,0 +1,67 @@
+- name: Install Docker and Docker Compose
+  hosts: vm_xviewer
+  gather_facts: no
+  tasks:
+    - name: Add docker repo
+      command: dnf config-manager --add-repo=https://download.docker.com/linux/centos/docker-ce.repo
+      become: true
+      become_user: root
+      register: test
+    
+    - name: Debug docker repo addition
+      debug: 
+        msg: "printing variable: {{test}}"
+
+    - name: Install Docker-ce
+      dnf: 
+        name: docker-ce
+        state: present
+        allowerasing: true
+        nobest: true
+      become: true
+      
+      #become_user: root
+    
+    - name: Enable Docker Service
+      systemd_service:
+        name: docker
+        enabled: true
+        masked: no
+      become_user: root
+      become: true
+
+    - name: Start Docker Service
+      systemd_service:
+        name: docker
+        state: started
+      become_user: root
+      become: true
+
+    - name: Install curl
+      dnf: 
+        name: curl
+        state: present
+      become: true
+
+    - name: Download docker-compose file
+      get_url:
+        url: https://github.com/docker/compose/releases/download/v2.21.0/docker-compose-linux-x86_64
+        dest: /usr/local/bin/docker-compose
+        mode: '0770'
+      become_user: root
+      become: true
+
+    - name: Ensure group "docker" exists
+      group:
+        name: docker
+        state: present
+
+    - name: Add user to "docker" group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+      become_user: root
+      become: true
+
+    

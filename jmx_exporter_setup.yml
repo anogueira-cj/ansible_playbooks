@@ -12,6 +12,13 @@
     #  debug: 
     #    msg: "printing variable: {{test}}"
 
+    - name: Create temporary directory for prometheus files
+      file:
+        path: "$HOME/software/prometheus_tmp"
+        state: directory
+        mode: '0755'
+      become: true
+
     - name: Copy JMX Agent jar to machine
       copy: 
         src: "/$HOME/software/ansible/files/jmx_prometheus_javaagent-0.20.0.jar"
@@ -96,4 +103,5 @@
     - name: Debug - Show new container files
       debug:
         msg: "{{ls_cmd.stdout_lines}}"
+
 
