@@ -16,8 +16,8 @@
       file:
         path: "$HOME/software/prometheus_tmp"
         state: directory
-        mode: '0755'
-      become: true
+        owner: '{{ansible_user}}'
+        mode: 0755
 
     - name: Copy JMX Agent jar to machine
       copy: 
@@ -34,12 +34,16 @@
         mode: a+x
 
     - name: Copy JMX Agent jar from host to container
+      delegate_to: localhost
+      connection: local
       community.docker.docker_container_copy_into:
         container: '{{xviewer_server_container_name}}'
         path: "$HOME/software/prometheus_tmp/jmx_prometheus_javaagent-0.20.0.jar"
         container_path: /opt/jboss/wildfly/jmx_prometheus_javaagent-0.20.0.jar
 
     - name: Copy JMX Agent config from host to container
+      delegate_to: localhost
+      connection: local
       community.docker.docker_container_copy_into:
         container: '{{xviewer_server_container_name}}'
         path: "$HOME/software/prometheus_tmp/config.yaml"
